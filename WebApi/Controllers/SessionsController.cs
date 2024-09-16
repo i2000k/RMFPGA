@@ -96,7 +96,7 @@ namespace WebApi.Controllers
                     .Select(s => s.ConnectionUrl)
                     .FirstOrDefault();
 
-                if (connUrl is null) 
+                if (connUrl is null)
                 {
                     _logger.LogError($"SendData ({sessionId}): Incorrect stand Url");
                     return StatusCode(500);
@@ -127,7 +127,7 @@ namespace WebApi.Controllers
 
             if (string.IsNullOrEmpty(ext) || !permittedExtensions.Contains(ext))
             {
-                // The extension is invalid ... 
+                // The extension is invalid ...
                 _logger.LogError($"UploadFile ({sessionId}): Incorrect file extension");
                 return BadRequest("The file extension must be .sof");
             }
@@ -141,8 +141,8 @@ namespace WebApi.Controllers
                     _logger.LogError($"UploadFile ({sessionId}): File size is too large");
                     return BadRequest("The file size is too large");
                 }
-                    
-                
+
+
                 var fileContent = memoryStream.ToArray();
 
                 var session = _dbContext.Sessions?.Find(sessionId);
@@ -188,6 +188,73 @@ namespace WebApi.Controllers
             }
             _logger.LogInformation($"UploadFile ({sessionId}): Success");
             return Ok("File was successfully uploaded");
+        }
+
+        [HttpGet("[action]")]
+        public async Task<IActionResult> ConnectToWebSocket()
+        {
+            //using (var ws = new WebSocket("ws://localhost:5002/Camera"))
+            //{
+            //    ws.OnOpen += (sender, e) =>
+            //                      _logger.LogInformation("Opening web socket");
+
+            //    ws.OnMessage += (sender, e) =>
+            //                      _logger.LogInformation("Camera says: " + e.Data);
+
+            //    ws.OnError += (sender, e) => {
+            //        _logger.LogError("WebSocket Error: " + e.Message);;
+            //    };
+
+            //    ws.OnClose += (sender, e) => {
+            //        _logger.LogInformation("Closing web socket");
+            //    };
+
+            //    ws.Connect();
+            //    ws.Send("BALUS");
+            //    Task.Delay(100);
+            //}
+
+            using (ClientWebSocket clientWebSocket = new ClientWebSocket())
+            {
+                Uri serviceUri = new Uri("ws://localhost:5001/send");
+                var cTs = new CancellationTokenSource();
+                cTs.CancelAfter(TimeSpan.FromSeconds(600));
+                try
+                {
+                    await clientWebSocket.ConnectAsync(serviceUri, cTs.Token);
+                    var n = 0;
+                    while (clientWebSocket.State == WebSocketState.Open)
+                    {
+                        _logger.LogInformation("Enter message to send");
+                        string message = Console.ReadLine();
+                        if (!string.IsNullOrEmpty(message))
+                        {
+                            ArraySegment<byte> byteTosend = new ArraySegment<byte>(Encoding.UTF8.GetBytes(message));
+                            await clientWebSocket.SendAsync(byteTosend, WebSocketMessageType.Text, true, cTs.Token);
+                            var responseBuffer = new byte[1024];
+                            var offset = 0;
+                            var packet = 1024;
+                            while (true)
+                            {
+                                ArraySegment<byte> byteReceived = new ArraySegment<byte>(responseBuffer, offset, packet);
+                                WebSocketReceiveResult response = await clientWebSocket.ReceiveAsync(byteReceived, cTs.Token);
+                                var responseMessage = Encoding.UTF8.GetString(responseBuffer, offset, response.Count);
+                                if (response.EndOfMessage)
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (WebSocketException exception)
+                {
+                    _logger.LogError(exception.Message);
+                    return BadRequest();
+                }
+            }
+
+            return Ok();
         }
     }
 }
