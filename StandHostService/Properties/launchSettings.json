@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "StandHostService": {
+      "commandName": "Project",
+      "applicationUrl": "http://localhost:5001",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true
+    }
+  }
+}
